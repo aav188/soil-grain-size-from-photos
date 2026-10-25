@@ -15,7 +15,7 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 | Curva media del train | 89,9 | – | – |
 | Ridge, todas las features de textura | **41,5** | 83,3 / 71,9 | – |
 | Ridge, sin color ni brillo (envío) | 44,2 | **70,2 / 53,2** | 64,9 (público, ~367 de 658) |
-| CNN (EfficientNet, salida monótona) | – | – | – |
+| CNN congelada (ConvNeXt-T) + cabeza monótona entrenada con EMD | 46,7 | **42,7 / 42,0** | pendiente |
 
 \* Entrenando con Motorola y evaluando con Samsung / al revés. El test es todo iPhone, así que este es el escenario realista: la puntuación pública (64,9) cae justo en ese rango, mientras que la validación con la misma cámara (44) era optimista.
 
@@ -25,6 +25,7 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 
 - **Las fotos de entrenamiento venían reducidas** (de 2,5 a 6 veces). Sin corregir los píxeles por mm, la escala física sale mal. Tras reescalar a 4,5 px/mm, todas las fotos abarcan entre 290 y 350 mm.
 - **La cámara es el mayor riesgo.** La misma muestra fotografiada con dos móviles da distinto color y contraste, y un modelo que usa color empeora mucho al cambiar de cámara.
+- **La CNN aguanta el cambio de cámara mucho mejor que la textura hecha a mano** (EMD entre cámaras de 61,7 a 42,3), y entrenar con la métrica oficial importa más que el modelo que va encima.
 - **La foto no siempre coincide con el laboratorio:** hay terrones de finos que parecen grava y gravas enterradas en la matriz.
 
 <!-- Gráficos: reports/figures/04_ejemplos_por_clase.png, 07_baseline_emd.png, 09_curvas_predichas.png -->
@@ -32,8 +33,8 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 ## Enfoque
 
 1. **EDA**: indicadores D10/D30/D50/D60, Cu y Cc, clasificación en grava, arena o finos, y revisión de las imágenes.
-2. **Baseline**: features de textura (GLCM, bordes, histogramas) con LightGBM.
-3. **CNN**: backbone preentrenado que predice incrementos con softmax y los acumula, así la curva siempre es monótona.
+2. **Baseline**: features de textura (GLCM, energía por escala, gradientes) a escala física común, con Ridge y LightGBM. Se descartan el color y el brillo absolutos porque dependen de la cámara.
+3. **CNN**: ConvNeXt-Tiny preentrenada y congelada sobre recortes de 50×50 mm, con una cabeza que predice incrementos con softmax y los acumula (la curva siempre es monótona), entrenada directamente con la EMD como pérdida.
 4. **Análisis de errores**: dónde falla el modelo según el tipo de suelo.
 
 ## Cómo reproducirlo
