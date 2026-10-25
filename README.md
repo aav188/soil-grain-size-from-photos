@@ -14,10 +14,10 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 | Uniforme (baseline de Kaggle) | 102,0 | – | – |
 | Curva media del train | 89,9 | – | – |
 | Ridge, todas las features de textura | **41,5** | 83,3 / 71,9 | – |
-| Ridge, sin color ni brillo (envío) | 44,2 | **70,2 / 53,2** | pendiente |
+| Ridge, sin color ni brillo (envío) | 44,2 | **70,2 / 53,2** | 64,9 (público, ~367 de 658) |
 | CNN (EfficientNet, salida monótona) | – | – | – |
 
-\* Entrenando con Motorola y evaluando con Samsung / al revés. El test es todo iPhone, así que este es el escenario realista.
+\* Entrenando con Motorola y evaluando con Samsung / al revés. El test es todo iPhone, así que este es el escenario realista: la puntuación pública (64,9) cae justo en ese rango, mientras que la validación con la misma cámara (44) era optimista.
 
 **Demo:** _enlace a Hugging Face Spaces_
 
