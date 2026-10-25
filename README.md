@@ -19,7 +19,7 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 
 \* Entrenando con Motorola y evaluando con Samsung / al revés. El test es todo iPhone, así que este es el escenario realista: la puntuación pública (64,9) cae justo en ese rango, mientras que la validación con la misma cámara (44) era optimista.
 
-**Demo:** _enlace a Hugging Face Spaces_
+**Demo:** app en Streamlit (`app/app.py`). Subes una foto, eliges el móvil y devuelve la curva, D10–D60, Cu, Cc y la clase. Ver *Cómo reproducirlo*.
 
 ## Hallazgos clave
 
@@ -42,7 +42,10 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-./scripts/download_data.sh      # necesita ~/.kaggle/kaggle.json
+./scripts/download_data.sh      # necesita ~/.kaggle/access_token o ~/.kaggle/kaggle.json
+jupyter nbconvert --to notebook --execute --inplace notebooks/0*.ipynb   # EDA, baseline y CNN (GPU recomendada)
+(cd src && python -m soilgrain.train_final)                             # modelo final para la demo
+streamlit run app/app.py
 ```
 
 Los datos no están en el repo porque las reglas de la competición no permiten redistribuirlos.
