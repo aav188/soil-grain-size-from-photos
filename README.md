@@ -19,7 +19,11 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 
 \* Entrenando con Motorola y evaluando con Samsung / al revés. El test es todo iPhone, así que este es el escenario realista: la puntuación pública (64,9) cae justo en ese rango, mientras que la validación con la misma cámara (44) era optimista.
 
-**La CNN gana en validación y pierde en Kaggle.** Mi hipótesis es que la validación entre cámaras no reproduce todo el cambio de dominio. Las fotos de train (Motorola y Samsung) llegaron ya reducidas y recomprimidas en JPEG, mientras que las de test (iPhone) vienen a resolución completa y las reduzco yo, así que la textura fina que ve la CNN es distinta. La CNN, además, hace predicciones tajantes (7 de 10 muestras como suelo casi todo fino), mientras que el baseline reparte más el riesgo. Con 10 muestras de test la puntuación pública es ruidosa, pero la diferencia es coherente con esa explicación. Siguiente paso: imitar en las fotos de test la cadena de procesado del train (reducción y recompresión JPEG) y evaluar con una validación que la incluya.
+**La CNN gana en validación y pierde en Kaggle.** Lo investigo en `04_dominio.ipynb`:
+- Las fotos de train se redujeron y recomprimieron (JPEG ~75, sin EXIF), y las de test no. Pero reproducir ese procesado en el test **no cambia** las predicciones, así que esa hipótesis queda descartada.
+- Un clasificador de dominio separa train y test casi a la perfección, pero **el control** (dos cámaras fotografiando las mismas muestras) también da AUC ~1. Un AUC alto solo indica que hay huella de cámara, no que perjudique.
+- La explicación más probable es que el test viene de **otras obras**, con suelos de otro aspecto, y que el leaderboard público usa muy pocas muestras.
+- **Decisión:** combinar textura y CNN. Como la EMD cumple la desigualdad triangular, la media de dos curvas nunca tiene más error que la media de los dos modelos, y eso acota el riesgo en el ranking privado.
 
 **Demo:** app en Streamlit (`app/app.py`). Subes una foto, eliges el móvil y devuelve la curva, D10–D60, Cu, Cc y la clase. Ver *Cómo reproducirlo*.
 
@@ -37,7 +41,7 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 1. **EDA**: indicadores D10/D30/D50/D60, Cu y Cc, clasificación en grava, arena o finos, y revisión de las imágenes.
 2. **Baseline**: features de textura (GLCM, energía por escala, gradientes) a escala física común, con Ridge y LightGBM. Se descartan el color y el brillo absolutos porque dependen de la cámara.
 3. **CNN**: ConvNeXt-Tiny preentrenada y congelada sobre recortes de 50×50 mm, con una cabeza que predice incrementos con softmax y los acumula (la curva siempre es monótona), entrenada directamente con la EMD como pérdida.
-4. **Análisis de errores**: dónde falla el modelo según el tipo de suelo.
+4. **Análisis de errores y de dominio**: dónde falla el modelo según el tipo de suelo, y por qué la validación no anticipó la puntuación de Kaggle.
 
 ## Cómo reproducirlo
 

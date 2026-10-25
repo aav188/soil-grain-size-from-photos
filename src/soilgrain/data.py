@@ -1,4 +1,5 @@
 """Carga de etiquetas e índice de fotos con su escala real (píxeles por mm)."""
+import io
 import unicodedata
 from pathlib import Path
 
@@ -80,10 +81,30 @@ def photo_index():
     return df
 
 
-def load_photo(path, target_ppm, ppm):
+# Las fotos de train (Motorola y Samsung) llegaron reducidas a ~4,6 px/mm y recomprimidas en
+# JPEG de calidad ~75; las de test vienen del iPhone a resolución completa y calidad ~93
+TRAIN_PIPELINE_PPM = 4.6
+TRAIN_PIPELINE_QUALITY = 75
+
+
+def emulate_train_pipeline(im, ppm):
+    """Reproduce en una foto de alta resolución la reducción y recompresión que traen las de train."""
+    if ppm <= TRAIN_PIPELINE_PPM * 1.2:
+        return im, ppm
+    factor = TRAIN_PIPELINE_PPM / ppm
+    im = im.resize((round(im.width * factor), round(im.height * factor)), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, format="JPEG", quality=TRAIN_PIPELINE_QUALITY)
+    buf.seek(0)
+    return Image.open(buf).convert("RGB"), TRAIN_PIPELINE_PPM
+
+
+def load_photo(path, target_ppm, ppm, emulate_train=False):
     """Abre la foto con la orientación EXIF aplicada y la reescala a target_ppm."""
     with Image.open(path) as im:
         im = ImageOps.exif_transpose(im).convert("RGB")
+        if emulate_train:
+            im, ppm = emulate_train_pipeline(im, ppm)
         factor = target_ppm / ppm
         size = (round(im.width * factor), round(im.height * factor))
         return np.asarray(im.resize(size, Image.LANCZOS))
