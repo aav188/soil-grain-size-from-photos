@@ -1,0 +1,16 @@
+# Datos de la competición: las reglas no permiten redistribuirlos
+data/
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# Modelos y salidas pesadas
+models/
+*.pt
+*.pth
+*.ckpt
+submissions/

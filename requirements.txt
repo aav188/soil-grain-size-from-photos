@@ -1,0 +1,14 @@
+numpy
+pandas
+matplotlib
+seaborn
+scikit-learn
+scikit-image
+lightgbm
+torch
+torchvision
+timm
+pillow
+jupyter
+kaggle
+streamlit
