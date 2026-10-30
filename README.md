@@ -15,8 +15,10 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 | Curva media del train | 89,9 | – | – |
 | Ridge, todas las features de textura | **41,5** | 83,3 / 71,9 | – |
 | Ridge, sin color ni brillo (envío) | 44,2 | **70,2 / 53,2** | 64,9 (público, ~367 de 658) |
+| Ridge Agregado por muestra (sin color/brillo) | 47,6 | **65,0 / 51,9** | – |
 | CNN congelada (ConvNeXt-T) + cabeza monótona entrenada con EMD | 46,7 | **42,7 / 42,0** | 72,3 (público) |
-| Media de curvas: textura + CNN | – | – | 67,2 (público) |
+| Media de curvas: textura + CNN (50/50) | – | – | 67,2 (público) |
+| Ensemble calibrado: 50% Ridge Agregado + 35% Ridge + 15% CNN | **42,8** | **57,1 / 48,5** | – |
 
 \* Entrenando con Motorola y evaluando con Samsung / al revés. El test es todo iPhone, así que este es el escenario realista: la puntuación pública (64,9) cae justo en ese rango, mientras que la validación con la misma cámara (44) era optimista.
 
@@ -59,4 +61,7 @@ Los datos no están en el repo porque las reglas de la competición no permiten 
 
 ## Limitaciones y próximos pasos
 
--
+- **Tamaño de muestra muy reducido:** Solo 24 muestras de suelo en train limitan la capacidad de generalización a nuevas formaciones geológicas u obras no representadas.
+- **Detección directa de gravas individuales:** En suelos gruesos con gravas individuales claramente discernibles, un modelo de segmentación de instancias o contornos (e.g. tipo Segment Anything o Mask R-CNN entrenado sobre clastos) aportaría información geométrica directa de la fracción gruesa.
+- **Calibración fotogramétrica en escena:** Disponer de una escala graduada o diana de color física (tipo tarjeta Macbeth) en la propia foto permitiría corregir tanto la distancia focal exacta como el balance de blancos y respuesta del sensor.
+- **Fine-tuning de capas intermedias con regularización inter-cámara:** Con más datos, desbloquear los últimos bloques convolucionales con una pérdida que penalice la discrepancia entre dispositivos aumentaría la invariancia del extractor de características.

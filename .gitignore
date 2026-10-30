@@ -13,4 +13,5 @@ models/
 *.pt
 *.pth
 *.ckpt
-submissions/
+submissions/*
+!submissions/*.csv
