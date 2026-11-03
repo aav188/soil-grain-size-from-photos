@@ -1,94 +1,48 @@
-"""Generación del modelo Ridge agregado y del ensemble calibrado de test.
+"""Envío final: ensemble de modelos de textura y de CNN, con perfiles de pesos nombrados.
 
-Mejora sobre el baseline:
-1. Ridge Aggregated Robust: agrega las features de textura a nivel de muestra
-   promediando las fotos de cada muestra antes de ajustar Ridge, eliminando el ruido
-   de orientación y sombras individuales y reduciendo el error inter-cámara.
-2. Ensemble calibrado: 50 % Ridge Agregado + 35 % Ridge Robusto + 15 % CNN,
-   evitando el sesgo hacia finos de la CNN sobre las fotos de iPhone y minimizando la EMD.
+Uso: python -m soilgrain.ensemble [v1|v2]   (desde src/; por defecto v2)
+
+- v1: 50 % Ridge agregado + 35 % Ridge + 15 % cabeza CNN. Puntuación pública en Kaggle: 56,48.
+- v2: 30 % Ridge agregado + 30 % Ridge + 10 % cabeza CNN + 30 % Ridge sobre embeddings de la CNN.
+  Mejora a v1 en los tres proxies de validación (por obra y entre cámaras); sin puntuación todavía.
+
+Los pesos NO se ajustan con la validación entre cámaras: el envío con esos pesos (95 % CNN) sacó 70,06
+en Kaggle frente a 56,48 de v1.
 """
-from pathlib import Path
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import Ridge
-from sklearn.model_selection import GridSearchCV, GroupKFold
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
+import sys
 
-from .data import photo_index, load_labels
-from .features import TARGET_PPM
+import pandas as pd
+
+from . import validation as v
 from .metrics import make_valid
 
-ROOT = Path(__file__).resolve().parents[2]
-PROCESSED = ROOT / "data" / "processed"
-SUBMISSIONS = ROOT / "submissions"
-TEMPLATE = ROOT / "data" / "raw" / "sample_submission.csv"
-
-CAMERA_SENSITIVE = ("lum_mean", "lum_std", "lum_p10", "lum_p90", "chroma_r", "chroma_g")
+SUBMISSIONS = v.ROOT / "submissions"
+TEMPLATE = v.ROOT / "data" / "raw" / "sample_submission.csv"
+MEMBERS = ("ridge_aggregated", "ridge_photo", "cnn", "cnn_ridge")
+PROFILES = {"v1": (0.50, 0.35, 0.15, 0.0), "v2": (0.30, 0.30, 0.10, 0.30)}
 
 
-def compute_submissions():
-    photos = photo_index()
-    labels = load_labels()
+def main(profile="v2"):
+    weights = PROFILES[profile]
+    ctx = v.load_context()
     template = pd.read_csv(TEMPLATE)
-    tex = pd.read_csv(PROCESSED / f"features_ppm{TARGET_PPM}.csv").set_index("file").loc[photos["path"].map(lambda p: p.name)]
-
-    features = [c for c in tex.columns if c != "n_patches"]
-    robust = [f for f in features if not f.startswith(CAMERA_SENSITIVE)]
-    target_cols = labels.columns[:-1]
-
-    is_test = (photos["split"] == "test").values
-    train_idx = np.where(~is_test)[0]
-    test_idx = np.where(is_test)[0]
-
-    # 1. Ridge robust original (entrenado por foto)
-    pipe_orig = make_pipeline(StandardScaler(), Ridge())
-    cv_orig = GroupKFold(n_splits=5)
-    model_orig = GridSearchCV(pipe_orig, {"ridge__alpha": np.logspace(-1, 4, 11)}, cv=cv_orig, scoring="neg_mean_absolute_error")
-    model_orig.fit(tex.iloc[train_idx][robust].values, labels.loc[photos.iloc[train_idx]["sample_id"], target_cols].values,
-                   groups=photos.iloc[train_idx]["sample_id"].values)
-    pred_orig_raw = model_orig.predict(tex.iloc[test_idx][robust].values)
-    pred_orig_raw = np.c_[pred_orig_raw, np.full(len(pred_orig_raw), 100.0)]
-    df_orig = pd.DataFrame(pred_orig_raw, index=photos.iloc[test_idx]["sample_id"].values)
-    pred_orig = pd.DataFrame(make_valid(df_orig.groupby(level=0).mean().loc[template["sample_id"]].values),
-                             index=template["sample_id"], columns=template.columns[1:])
-
-    # 2. Ridge aggregated (entrenado y predicho sobre medias por muestra)
-    train_df = photos.iloc[train_idx].copy()
-    for c in robust:
-        train_df[c] = tex.iloc[train_idx][c].values
-    tr_grouped = train_df.groupby("sample_id")[robust].mean()
-    X_tr = tr_grouped.values
-    y_tr = labels.loc[tr_grouped.index, target_cols].values
-
-    pipe_agg = make_pipeline(StandardScaler(), Ridge())
-    model_agg = GridSearchCV(pipe_agg, {"ridge__alpha": np.logspace(-1, 4, 11)}, cv=5, scoring="neg_mean_absolute_error")
-    model_agg.fit(X_tr, y_tr)
-
-    test_df = photos.iloc[test_idx].copy()
-    for c in robust:
-        test_df[c] = tex.iloc[test_idx][c].values
-    te_grouped = test_df.groupby("sample_id")[robust].mean().loc[template["sample_id"]]
-
-    pred_agg_raw = model_agg.predict(te_grouped.values)
-    pred_agg_raw = np.c_[pred_agg_raw, np.full(len(pred_agg_raw), 100.0)]
-    pred_agg = pd.DataFrame(make_valid(pred_agg_raw), index=template["sample_id"], columns=template.columns[1:])
-
-    # Guardar Ridge Agregado
+    tr = (ctx.photos["split"] == "train").values.nonzero()[0]
+    cols = template.columns[1:]
+    used = [m for m, w in zip(MEMBERS, weights) if w > 0]
+    preds = {m: [] for m in used}
+    for sid in template["sample_id"]:
+        ev = (ctx.sid == sid).nonzero()[0]
+        for m in used:
+            preds[m].append(v.MODELS[m](ctx, tr, ev))
+    frames = [make_valid(preds[m]) for m in used]
+    ens = v.blend(frames, [w for w in weights if w > 0])
+    out = pd.DataFrame(ens, index=template["sample_id"], columns=cols).round(4)
+    assert (out.diff(axis=1).iloc[:, 1:] >= 0).all().all() and (out.iloc[:, -1] == 100).all()
+    path = SUBMISSIONS / f"ensemble_{profile}.csv"
     SUBMISSIONS.mkdir(exist_ok=True)
-    pred_agg.round(4).to_csv(SUBMISSIONS / "ridge_aggregated_robust.csv")
-
-    # 3. Ensemble calibrado con CNN (si existe submission de CNN)
-    cnn_file = SUBMISSIONS / "cnn.csv"
-    if cnn_file.exists():
-        cnn = pd.read_csv(cnn_file, index_col="sample_id")
-        blend = 0.50 * pred_agg.values + 0.35 * pred_orig.values + 0.15 * cnn.loc[template["sample_id"]].values
-        ensemble = pd.DataFrame(make_valid(blend), index=template["sample_id"], columns=template.columns[1:])
-        ensemble.round(4).to_csv(SUBMISSIONS / "ensemble_mejorado.csv")
-        print(f"Guardado {SUBMISSIONS / 'ensemble_mejorado.csv'}")
-
-    print(f"Guardado {SUBMISSIONS / 'ridge_aggregated_robust.csv'}")
+    out.to_csv(path)
+    print(f"Guardado {path} con pesos {dict(zip(MEMBERS, weights))}")
 
 
 if __name__ == "__main__":
-    compute_submissions()
+    main(sys.argv[1] if len(sys.argv) > 1 else "v2")

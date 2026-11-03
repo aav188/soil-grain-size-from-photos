@@ -9,6 +9,9 @@ PY="${PY:-.venv/bin/python}"
 echo "1/4 Compilando src/ y app/"
 "$PY" -W error -m compileall -q src app
 
+echo "1b/4 Tests"
+"$PY" -m pytest -q tests
+
 echo "2/4 Comprobando métrica, curvas e indicadores"
 "$PY" - <<'EOF'
 import sys

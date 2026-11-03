@@ -40,6 +40,19 @@ def train_heads(X, y, sample_ids, seeds=3, epochs=40, hidden=128, lr=1e-3, wd=1e
     return {"states": states, "mu": mu, "sd": sd, "hidden": hidden, "in_features": X.shape[1]}
 
 
+def predict_heads(bundle, X, device="cpu"):
+    """Curva media de las cabezas entrenadas sobre los recortes de una muestra."""
+    Xn = torch.tensor((X - bundle["mu"]) / bundle["sd"], dtype=torch.float32, device=device)
+    curves = []
+    for state in bundle["states"]:
+        head = MonotoneHead(bundle["in_features"], hidden=bundle["hidden"]).to(device)
+        head.load_state_dict(state)
+        head.eval()
+        with torch.no_grad():
+            curves.append(head(Xn).mean(0).cpu().numpy())
+    return np.mean(curves, axis=0)
+
+
 def main():
     photos = photo_index()
     labels = load_labels()
