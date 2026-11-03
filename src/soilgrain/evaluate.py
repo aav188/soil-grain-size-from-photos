@@ -1,6 +1,7 @@
-"""Calcula las predicciones fuera de muestra de cada modelo y valida el ensemble con pesos anidados.
+"""Predicciones fuera de muestra de cada modelo y de cada perfil de ensemble, con todos los esquemas de validación.
 
-Uso: python -m soilgrain.evaluate   (desde src/). Guarda data/processed/oof.pkl y reports/validacion.csv
+Uso: python -m soilgrain.evaluate   (desde src/). Guarda data/processed/oof.pkl, reports/validacion.csv
+y reports/fiabilidad_camaras.csv.
 """
 import pickle
 import sys
@@ -13,7 +14,6 @@ from .metrics import emd
 
 CACHE = v.PROCESSED / "oof.pkl"
 SITE = "Por obra"
-MEMBERS = ("ridge_aggregated", "ridge_photo", "cnn", "cnn_ridge")
 
 
 def compute_oof(ctx, force=False):
@@ -31,20 +31,23 @@ def compute_oof(ctx, force=False):
 
 
 def main():
-    from .ensemble import PROFILES
+    from .ensemble import CENTERED, PROFILES
     ctx = v.load_context()
     oof = compute_oof(ctx)
     labels = ctx.labels
     cols = [SITE, *v.SETUPS]
-    table = {m: {s: v.score(labels, oof[(m, s)]).mean() for s in cols} for m in MEMBERS}
-    for name, w in PROFILES.items():
-        table[f"ensemble {name} {w}"] = {
-            s: emd(labels.loc[oof[(MEMBERS[0], s)].index].values,
-                   v.blend([oof[(m, s)].values for m in MEMBERS], w)).mean() for s in cols}
+    table = {m: {s: v.score(labels, oof[(m, s)]).mean() for s in cols} for m in v.MODELS}
+    for name, weights in PROFILES.items():
+        if name in CENTERED or len(weights) == 1:
+            continue  # v3 necesita otras features; los perfiles de un modelo ya están en la tabla
+        table[f"ensemble {name}"] = {s: emd(labels.loc[oof[(next(iter(weights)), s)].index].values,
+                                            v.blend([oof[(m, s)].values for m in weights], list(weights.values()))).mean()
+                                     for s in cols}
     df = pd.DataFrame(table).T[cols]
-    out = v.ROOT / "reports" / "validacion.csv"
-    df.round(1).to_csv(out, index_label="modelo")
+    df.round(1).to_csv(v.ROOT / "reports" / "validacion.csv", index_label="modelo")
     print(df.round(1).to_string())
+    rel = v.camera_reliability(ctx).sort_values("r_entre_camaras", ascending=False)
+    rel.round(2).to_csv(v.ROOT / "reports" / "fiabilidad_camaras.csv", index_label="feature")
 
 
 if __name__ == "__main__":

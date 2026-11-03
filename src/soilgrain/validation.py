@@ -22,6 +22,9 @@ ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = ROOT / "data" / "processed"
 CAMERA_SENSITIVE = ("lum_mean", "lum_std", "lum_p10", "lum_p90", "chroma_r", "chroma_g")
 ALPHAS = np.logspace(0, 5, 11)
+# Energía por banda de escala a 1, 2 y 4 mm: las features más estables entre cámaras (r ≥ 0,92 entre
+# Motorola y Samsung sobre las mismas muestras, desplazamiento ≤ 0,9 sd) y muy ligadas a la etiqueta.
+BANDS = ("band_1mm", "band_2mm", "band_4mm")
 SETUPS = ("LOSO", "Motorola → Samsung", "Samsung → Motorola")
 
 
@@ -29,7 +32,8 @@ SETUPS = ("LOSO", "Motorola → Samsung", "Samsung → Motorola")
 class Context:
     photos: pd.DataFrame
     labels: pd.DataFrame
-    tex: np.ndarray            # features de textura robustas a la cámara, una fila por foto
+    tex: np.ndarray            # features de textura sin color ni brillo absolutos, una fila por foto
+    tex_cols: list             # nombre de cada columna de `tex`
     patch_emb: list            # embeddings de la CNN por recorte, una lista por foto
     y: np.ndarray              # curva de cada foto (NaN en test), sin la última columna
     sid: np.ndarray
@@ -68,7 +72,28 @@ def load_context(center_tex=False):
     X = tex[cols].values
     if center_tex:
         X = center_by_camera(X, photos["phone"])
-    return Context(photos, labels, X, emb, labels.reindex(sid).values, sid)
+    return Context(photos, labels, X, cols, emb, labels.reindex(sid).values, sid)
+
+
+def camera_reliability(ctx):
+    """Cuánto mide cada feature el suelo y cuánto la cámara, con las muestras de train fotografiadas por ambos móviles.
+
+    - r_entre_camaras: correlación, entre muestras, de la media con Motorola y la media con Samsung.
+      Una feature que mide suelo ordena igual las muestras con las dos cámaras (r cerca de 1).
+    - desplaz_cam_sd: diferencia media Samsung - Motorola, en desviaciones típicas entre suelos con una misma cámara.
+    No usa etiquetas ni el test.
+    """
+    fam = camera_family(ctx.photos["phone"])
+    df = pd.DataFrame(ctx.tex, columns=ctx.tex_cols)
+    df["fam"], df["sid"] = fam, ctx.sid
+    means = df[ctx.train_mask].groupby(["fam", "sid"])[ctx.tex_cols].mean()
+    both = means.loc["Motorola"].index.intersection(means.loc["Samsung"].index)
+    mot, sam = means.loc["Motorola"].loc[both], means.loc["Samsung"].loc[both]
+    within_sd = np.sqrt((mot.var() + sam.var()) / 2)
+    return pd.DataFrame({
+        "r_entre_camaras": [np.corrcoef(mot[c], sam[c])[0, 1] for c in ctx.tex_cols],
+        "desplaz_cam_sd": ((sam - mot).mean() / within_sd).values,
+    }, index=ctx.tex_cols)
 
 
 def _ridge(X, y, groups=None):
@@ -90,12 +115,21 @@ def ridge_photo(ctx, tr, ev):
     return np.r_[m.predict(ctx.tex[ev]).mean(axis=0), 100]
 
 
-def ridge_aggregated(ctx, tr, ev):
-    """Un Ridge sobre las features medias por muestra (menos ruido de orientación y sombras)."""
-    X, ids = _mean_by_sample(ctx.tex[tr], ctx.sid[tr])
+def ridge_aggregated(ctx, tr, ev, cols=None):
+    """Un Ridge sobre las features medias por muestra (menos ruido de orientación y sombras).
+
+    Con `cols`, solo usa esas columnas de textura.
+    """
+    T = ctx.tex if cols is None else ctx.tex[:, [ctx.tex_cols.index(c) for c in cols]]
+    X, ids = _mean_by_sample(T[tr], ctx.sid[tr])
     y = ctx.labels.loc[ids].values[:, :-1]
     m = _ridge(X, y)
-    return np.r_[m.predict(ctx.tex[ev].mean(axis=0, keepdims=True))[0], 100]
+    return np.r_[m.predict(T[ev].mean(axis=0, keepdims=True))[0], 100]
+
+
+def ridge_bands(ctx, tr, ev):
+    """Ridge agregado solo con la energía por banda a 1, 2 y 4 mm (BANDS), las features más estables entre cámaras."""
+    return ridge_aggregated(ctx, tr, ev, cols=BANDS)
 
 
 def cnn_head(ctx, tr, ev, seeds=3, epochs=40):
@@ -117,15 +151,8 @@ def cnn_ridge(ctx, tr, ev):
     return np.r_[m.predict(_emb_mean(ctx, ev).mean(axis=0, keepdims=True))[0], 100]
 
 
-def tex_cnn_ridge(ctx, tr, ev):
-    """Ridge agregado sobre textura y embeddings concatenados."""
-    f = lambda idx: np.hstack([ctx.tex[idx], _emb_mean(ctx, idx)])
-    X, ids = _mean_by_sample(f(tr), ctx.sid[tr])
-    m = _ridge(X, ctx.labels.loc[ids].values[:, :-1])
-    return np.r_[m.predict(f(ev).mean(axis=0, keepdims=True))[0], 100]
-
-
-MODELS = {"ridge_photo": ridge_photo, "ridge_aggregated": ridge_aggregated, "cnn": cnn_head, "cnn_ridge": cnn_ridge}
+MODELS = {"ridge_photo": ridge_photo, "ridge_aggregated": ridge_aggregated, "ridge_bands": ridge_bands,
+          "cnn": cnn_head, "cnn_ridge": cnn_ridge}
 
 
 def setup_masks(ctx, setup):
@@ -179,29 +206,3 @@ def simplex_grid(k, step=0.05):
 
 def blend(preds, w):
     return make_valid(sum(wi * p for wi, p in zip(w, preds)))
-
-
-def fit_weights(labels, preds_by_setup, exclude, grid):
-    """Pesos que minimizan la EMD media entre cámaras, sin usar la muestra `exclude`.
-
-    Cada esquema de cambio de cámara cubre solo las muestras fotografiadas con ambos móviles.
-    """
-    cross = [s for s in preds_by_setup if s != "LOSO"]
-    data = []
-    for s in cross:
-        ids = preds_by_setup[s][0].index.drop(exclude, errors="ignore")
-        data.append((labels.loc[ids].values, [p.loc[ids].values for p in preds_by_setup[s]]))
-    vals = [np.mean([emd(y, blend(ps, w)).mean() for y, ps in data]) for w in grid]
-    return grid[int(np.argmin(vals))]
-
-
-def nested_blend(labels, preds_by_setup, grid):
-    """Los pesos de cada muestra se eligen sin ella: la estimación honesta de un ensemble ajustado."""
-    out = {}
-    for setup, preds in preds_by_setup.items():
-        rows = []
-        for s in preds[0].index:
-            w = fit_weights(labels, preds_by_setup, s, grid)
-            rows.append(blend([p.loc[[s]].values for p in preds], w)[0])
-        out[setup] = pd.DataFrame(np.vstack(rows), index=preds[0].index, columns=labels.columns)
-    return out
