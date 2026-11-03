@@ -59,7 +59,11 @@ def patch_features(patch, ppm=TARGET_PPM):
 
 def photo_features(img, ppm=TARGET_PPM):
     """Media y desviación de las features de todos los recortes de una foto ya reescalada."""
-    rows = [patch_features(p, ppm) for p in patches(img, int(PATCH_MM * ppm))]
+    patch_px = int(PATCH_MM * ppm)
+    rows = [patch_features(p, ppm) for p in patches(img, patch_px)]
+    if not rows:
+        raise ValueError(f"La foto ({img.shape[1]}×{img.shape[0]} px) es menor que un recorte de "
+                         f"{patch_px} px ({PATCH_MM} mm a {ppm} px/mm).")
     keys = rows[0].keys()
     arr = np.array([[r[k] for k in keys] for r in rows])
     out = {f"{k}": v for k, v in zip(keys, arr.mean(axis=0))}

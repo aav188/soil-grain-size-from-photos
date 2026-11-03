@@ -52,7 +52,11 @@ ppm = manual_ppm or effective_ppm(phone, width, height)
 upload.seek(0)
 
 with st.spinner("Analizando la foto…"):
-    curve, img = get_predictor().predict(upload, ppm)
+    try:
+        curve, img = get_predictor().predict(upload, ppm)
+    except ValueError as err:
+        st.error(str(err))
+        st.stop()
 predictor = get_predictor()
 sieves = predictor.sieves
 ind = gradation_indicators(sieves, curve)

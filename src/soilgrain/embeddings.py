@@ -23,8 +23,14 @@ def patch_embeddings(img, backbone, gray=False, stride_px=PATCH_PX // 2, batch=6
 
     Cada recorte se promedia con su volteo horizontal y vertical (TTA barato).
     """
+    crops = list(patches(img, PATCH_PX, stride_px))
+    if not crops:
+        raise ValueError(
+            f"La foto reescalada mide {img.shape[1]}×{img.shape[0]} px y hace falta al menos "
+            f"{PATCH_PX}×{PATCH_PX} px (~{PATCH_PX / TARGET_PPM:.0f} mm de suelo por lado). "
+            "Usa una foto de más resolución o revisa los píxeles por mm.")
     model, mean, std, device = backbone
-    crops = np.stack(list(patches(img, PATCH_PX, stride_px))).astype(np.float32) / 255
+    crops = np.stack(crops).astype(np.float32) / 255
     if gray:
         lum = crops @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
         crops = np.repeat(lum[..., None], 3, axis=-1)
