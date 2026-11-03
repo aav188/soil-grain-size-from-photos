@@ -50,3 +50,12 @@ def test_simplex_grid_sums_to_one():
 def test_blend_of_valid_curves_is_valid():
     a, b = make_valid(np.random.default_rng(2).uniform(0, 100, (2, 11)))
     assert (np.diff(blend([a, b], (0.3, 0.7)), axis=1) >= 0).all()
+
+
+def test_center_by_camera_zero_mean_per_family():
+    from soilgrain.validation import center_by_camera
+    X = np.arange(12, dtype=float).reshape(6, 2)
+    phones = ["Motorola Edge", "Motorola Edge 60 Fusion", "Samsung A52", "Samsung A52", "iPhone 16", "iPhone 14"]
+    Xc = center_by_camera(X, phones)
+    for rows in ([0, 1], [2, 3], [4, 5]):
+        assert np.allclose(Xc[rows].mean(axis=0), 0)

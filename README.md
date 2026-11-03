@@ -21,12 +21,14 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 | Ensemble v1: 50% Ridge Agr. + 35% Ridge + 15% CNN | 44,9 | 61,4 / 48,3 | 56,48 (público) |
 | Ensemble 95% CNN (pesos ajustados con el cambio de cámara) | – | 43,9 / 41,5 | 70,06 (público) |
 | **Ensemble v2: 30% Ridge Agr. + 30% Ridge + 10% CNN + 30% Ridge sobre embeddings CNN** | **42,6** | 57,9 / 45,4 | **56,25 (público)** |
+| Ensemble v3: v2 con textura centrada por cámara | – | 48,5 / 43,2 | 58,56 (público) |
 
 \* Entrenando con Motorola y evaluando con Samsung / al revés. El test es todo iPhone, así que este es el escenario realista: la puntuación pública (64,9) cae justo en ese rango, mientras que la validación con la misma cámara (44) era optimista.
 
 **Lecciones sobre la validación (todo reproducible con `python -m soilgrain.evaluate`, tabla en `reports/validacion.csv`):**
 - La validación entre cámaras **no predice** el test: ajustar los pesos del ensemble con ella dio 95 % CNN, que sacó 70,06 en Kaggle frente a 56,48 del ensemble ridge-pesado. No se usa para elegir pesos.
 - Probé también una validación dejando fuera obras enteras (ids consecutivos agrupados, supuesto no verificado): coincide en que la CNN es lo peor, pero tampoco explica la ventaja del ensemble.
+- Centrar las features de textura por cámara (v3) mejora mucho entre cámaras (57,9 → 48,5) y un poco por obra (50,6 → 49,2), pero empeora en Kaggle (56,25 → 58,56): si los suelos del test son distintos de verdad, centrar también borra esa señal.
 - v2 mejora a v1 en las tres validaciones, pero en Kaggle solo por 0,23 puntos (56,25 frente a 56,48): con 10 muestras públicas es ruido. Las diferencias de unos pocos puntos no son concluyentes.
 
 **La CNN gana en validación y pierde en Kaggle.** Lo investigo en `04_dominio.ipynb`:

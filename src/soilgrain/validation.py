@@ -39,7 +39,25 @@ class Context:
         return (self.photos["split"] == "train").values
 
 
-def load_context():
+def camera_family(phones):
+    """Motorola, Samsung o iPhone: los dos modelos de cada marca comparten procesado de imagen."""
+    return pd.Series(phones).str.split().str[0].values
+
+
+def center_by_camera(X, phones):
+    """Resta a cada familia de cámara la media de sus propias fotos (en test, las del iPhone sin etiqueta).
+
+    Quita el desplazamiento de color/nitidez de cada móvil. Ojo: si el test tiene de verdad suelos
+    distintos de media, también borra esa parte de la señal.
+    """
+    X = X.copy()
+    fam = camera_family(phones)
+    for f in np.unique(fam):
+        X[fam == f] -= X[fam == f].mean(axis=0)
+    return X
+
+
+def load_context(center_tex=False):
     photos, labels = photo_index(), load_labels()
     tex = pd.read_csv(PROCESSED / f"features_ppm{TARGET_PPM}.csv").set_index("file")
     tex = tex.loc[photos["path"].map(lambda p: p.name)]
@@ -47,7 +65,10 @@ def load_context():
     z = np.load(PROCESSED / f"emb_convnext_tiny_color_ppm{TARGET_PPM}.npz")
     emb = [z[str(i)] for i in range(len(photos))]
     sid = photos["sample_id"].values
-    return Context(photos, labels, tex[cols].values, emb, labels.reindex(sid).values, sid)
+    X = tex[cols].values
+    if center_tex:
+        X = center_by_camera(X, photos["phone"])
+    return Context(photos, labels, X, emb, labels.reindex(sid).values, sid)
 
 
 def _ridge(X, y, groups=None):
