@@ -1,6 +1,9 @@
 """Envío final: ensemble de modelos de textura y de CNN, con perfiles de pesos nombrados.
 
-Uso: python -m soilgrain.ensemble [v1|v2]   (desde src/; por defecto v2)
+Uso: python -m soilgrain.ensemble [agg|v1|v2|v3]   (desde src/; por defecto agg, el mejor en Kaggle)
+
+- agg: solo el Ridge agregado por muestra. Kaggle: 43,52, el mejor con diferencia. Los miembros con
+  CNN empujan las curvas hacia los finos y el test parece más grueso.
 
 - v1: 50 % Ridge agregado + 35 % Ridge + 15 % cabeza CNN. Puntuación pública en Kaggle: 56,48.
 - v2: 30 % Ridge agregado + 30 % Ridge + 10 % cabeza CNN + 30 % Ridge sobre embeddings de la CNN.
@@ -22,11 +25,12 @@ from .metrics import make_valid
 SUBMISSIONS = v.ROOT / "submissions"
 TEMPLATE = v.ROOT / "data" / "raw" / "sample_submission.csv"
 MEMBERS = ("ridge_aggregated", "ridge_photo", "cnn", "cnn_ridge")
-PROFILES = {"v1": (0.50, 0.35, 0.15, 0.0), "v2": (0.30, 0.30, 0.10, 0.30), "v3": (0.30, 0.30, 0.10, 0.30)}
+PROFILES = {"v1": (0.50, 0.35, 0.15, 0.0), "v2": (0.30, 0.30, 0.10, 0.30), "v3": (0.30, 0.30, 0.10, 0.30),
+            "agg": (1.0, 0.0, 0.0, 0.0)}
 CENTERED = {"v3"}  # perfiles cuyas features de textura se centran por familia de cámara
 
 
-def main(profile="v2"):
+def main(profile="agg"):
     weights = PROFILES[profile]
     ctx = v.load_context(center_tex=profile in CENTERED)
     template = pd.read_csv(TEMPLATE)
@@ -49,4 +53,4 @@ def main(profile="v2"):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "v2")  # v2 es el mejor en Kaggle
+    main(sys.argv[1] if len(sys.argv) > 1 else "agg")  # agg es el mejor en Kaggle
