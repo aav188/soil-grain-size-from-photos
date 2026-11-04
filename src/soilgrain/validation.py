@@ -151,7 +151,42 @@ def cnn_ridge(ctx, tr, ev):
     return np.r_[m.predict(_emb_mean(ctx, ev).mean(axis=0, keepdims=True))[0], 100]
 
 
+def ridge_aggregated_iso(ctx, tr, ev):
+    """Ridge agregado con proyección isotónica en vez de cummax (que solo corrige hacia finos)."""
+    return make_valid(ridge_aggregated(ctx, tr, ev), method="isotonic")[0]
+
+
+KNN_K = (3, 5, 8)
+
+
+def _knn_predict(Xtr, Ytr, Xev, k):
+    """Media de las curvas de los k vecinos más cercanos, con peso inverso a la distancia."""
+    d = np.linalg.norm(Xev[:, None] - Xtr[None], axis=2)
+    nn = np.argsort(d, axis=1)[:, :k]
+    w = 1 / (np.take_along_axis(d, nn, axis=1) + 1e-6)
+    return (Ytr[nn] * w[..., None]).sum(1) / w.sum(1, keepdims=True)
+
+
+def knn_curves(ctx, tr, ev, cols=None):
+    """Curva media ponderada de las muestras de train más parecidas en textura (features medias por muestra).
+
+    Una mezcla de curvas reales siempre es una curva válida y nunca sale del rango visto en train,
+    así que no puede dar los 0 % o 100 % en bloque que da el Ridge al extrapolar. k se elige con
+    leave-one-out dentro de `tr`.
+    """
+    T = ctx.tex if cols is None else ctx.tex[:, [ctx.tex_cols.index(c) for c in cols]]
+    X, ids = _mean_by_sample(T[tr], ctx.sid[tr])
+    Y = ctx.labels.loc[ids].values
+    mu, sd = X.mean(0), X.std(0) + 1e-9
+    Z, zev = (X - mu) / sd, (T[ev].mean(axis=0, keepdims=True) - mu) / sd
+    loo = lambda k: np.mean([emd(Y[i], _knn_predict(np.delete(Z, i, 0), np.delete(Y, i, 0), Z[i:i + 1], k))[0]
+                             for i in range(len(Z))])
+    k = min((k for k in KNN_K if k < len(Z)), key=loo)
+    return make_valid(_knn_predict(Z, Y, zev, k))[0]
+
+
 MODELS = {"ridge_photo": ridge_photo, "ridge_aggregated": ridge_aggregated, "ridge_bands": ridge_bands,
+          "ridge_aggregated_iso": ridge_aggregated_iso, "knn_curves": knn_curves,
           "cnn": cnn_head, "cnn_ridge": cnn_ridge}
 
 

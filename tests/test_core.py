@@ -59,3 +59,13 @@ def test_center_by_camera_zero_mean_per_family():
     Xc = center_by_camera(X, phones)
     for rows in ([0, 1], [2, 3], [4, 5]):
         assert np.allclose(Xc[rows].mean(axis=0), 0)
+
+
+def test_isotonic_projection_is_monotone_and_not_biased_to_fines():
+    curve = np.array([[10, 30, 20, 40, 60, 50, 70, 80, 90, 95, 100.0]])
+    iso, cum = make_valid(curve, method="isotonic"), make_valid(curve)
+    assert (np.diff(iso, axis=1) >= 0).all() and iso[0, -1] == 100
+    assert np.allclose(iso[0, 1:3], 25) and np.allclose(iso[0, 4:6], 55)  # media de cada par invertido
+    assert iso.sum() < cum.sum()  # cummax solo sube; la isotónica no sesga hacia finos
+    ok = make_valid(np.sort(np.random.default_rng(3).uniform(0, 100, (5, 11)), axis=1))
+    assert np.allclose(make_valid(ok, method="isotonic"), ok)

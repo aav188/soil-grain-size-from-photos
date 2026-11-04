@@ -26,3 +26,13 @@ def test_direction_table_ratio_within_triangle_bounds():
     assert all((SUBMISSIONS / f"{n}.csv").exists() for n in KNOWN_SCORES)
     t = direction_table()
     assert ((t["ratio"] >= -1) & (t["ratio"] <= 1)).all()
+
+
+def test_reconstructed_truths_reproduce_known_scores():
+    from soilgrain.leaderboard import load, reconstruct_truths
+    truths = reconstruct_truths(n_samples=3, seed=0)
+    assert len(truths) > 0
+    for T in truths:
+        assert (np.diff(T, axis=1) >= -1e-9).all() and np.allclose(T[:, -1], 100)
+        for name, lb in KNOWN_SCORES.items():
+            assert abs(emd(T, load(name).loc[load("ensemble_agg").index].values).mean() - lb) <= 4.0

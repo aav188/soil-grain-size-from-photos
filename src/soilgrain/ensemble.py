@@ -1,6 +1,6 @@
 """Envío final: ensemble de modelos de textura y de CNN, con perfiles de pesos nombrados.
 
-Uso: python -m soilgrain.ensemble [agg|bands|v1|v2|v3]   (desde src/; por defecto agg, el mejor en Kaggle)
+Uso: python -m soilgrain.ensemble [agg|agg_iso|knn|bands|v1|v2|v3]   (desde src/; por defecto agg, el mejor en Kaggle)
 
 - agg: solo el Ridge agregado por muestra. Kaggle: 43,52, el mejor con diferencia. Los miembros con
   CNN empujan las curvas hacia los finos y el test parece más grueso.
@@ -9,6 +9,11 @@ Uso: python -m soilgrain.ensemble [agg|bands|v1|v2|v3]   (desde src/; por defect
   muestra de train fotografiada a resolución completa como el test.
   OJO: sin puntuar, y sus curvas del test son mucho más finas que las de agg (+55 de área, más que la
   CNN). En Kaggle, cuanto más fino el envío, peor puntúa (soilgrain.leaderboard): probablemente saque > 70.
+
+- agg_iso: agg con proyección isotónica (sin validar todavía). cummax solo corrige hacia finos y el test
+  parece más grueso; donde el Ridge no da curva monótona, la isotónica reparte la corrección.
+- knn: media ponderada de las curvas de las muestras de train más parecidas (sin validar todavía).
+  Nunca da curvas degeneradas, pero tampoco puede predecir suelos más extremos que los de train.
 
 - v1: 50 % Ridge agregado + 35 % Ridge + 15 % cabeza CNN. Puntuación pública en Kaggle: 56,48.
 - v2: 30 % Ridge agregado + 30 % Ridge + 10 % cabeza CNN + 30 % Ridge sobre embeddings de la CNN.
@@ -31,6 +36,8 @@ SUBMISSIONS = v.ROOT / "submissions"
 TEMPLATE = v.ROOT / "data" / "raw" / "sample_submission.csv"
 PROFILES = {
     "agg": {"ridge_aggregated": 1.0},
+    "agg_iso": {"ridge_aggregated_iso": 1.0},
+    "knn": {"knn_curves": 1.0},
     "bands": {"ridge_bands": 1.0},
     "v1": {"ridge_aggregated": 0.50, "ridge_photo": 0.35, "cnn": 0.15},
     "v2": {"ridge_aggregated": 0.30, "ridge_photo": 0.30, "cnn": 0.10, "cnn_ridge": 0.30},

@@ -52,3 +52,22 @@ def test_ridge_aggregated_on_subset_uses_only_those_columns():
     # cambiar la feature de cámara de la muestra evaluada no cambia nada si no se usa
     ctx.tex[ev, 1] += 100
     assert np.allclose(pred, ridge_aggregated(ctx, tr, ev, cols=["suelo"]))
+
+
+def test_knn_curves_returns_valid_curve_within_train_range():
+    from soilgrain.validation import knn_curves
+    ctx = fake_context()
+    tr = np.where(ctx.sid != "H100")[0]
+    ev = np.where(ctx.sid == "H100")[0]
+    pred = knn_curves(ctx, tr, ev)
+    Y = ctx.labels.drop("H100").values
+    assert (np.diff(pred) >= 0).all() and pred[-1] == 100
+    assert (pred >= Y.min(0) - 1e-9).all() and (pred <= Y.max(0) + 1e-9).all()
+
+
+def test_ridge_aggregated_iso_is_valid():
+    from soilgrain.validation import ridge_aggregated_iso
+    ctx = fake_context()
+    tr, ev = np.where(ctx.sid != "H101")[0], np.where(ctx.sid == "H101")[0]
+    pred = ridge_aggregated_iso(ctx, tr, ev)
+    assert (np.diff(pred) >= 0).all() and pred.min() >= 0 and pred[-1] == 100

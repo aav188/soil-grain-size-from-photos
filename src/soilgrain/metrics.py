@@ -19,9 +19,34 @@ def mean_emd(y_true, y_pred):
     return float(emd(y_true, y_pred).mean())
 
 
-def make_valid(curves):
-    """Recorta a [0, 100], fuerza la monotonía y fija 100 en el tamiz de 200 mm."""
+def isotonic(y):
+    """Regresión isotónica creciente (PAVA, mínimos cuadrados) de cada fila."""
+    out = np.empty_like(y, dtype=float)
+    for r, row in enumerate(np.asarray(y, dtype=float)):
+        vals, counts = [], []
+        for v in row:
+            vals.append(v)
+            counts.append(1)
+            while len(vals) > 1 and vals[-2] > vals[-1]:
+                c = counts[-2] + counts[-1]
+                vals[-2] = (vals[-2] * counts[-2] + vals[-1] * counts[-1]) / c
+                counts[-2] = c
+                vals.pop()
+                counts.pop()
+        out[r] = np.repeat(vals, counts)
+    return out
+
+
+def make_valid(curves, method="cummax"):
+    """Recorta a [0, 100], fuerza la monotonía y fija 100 en el tamiz de 200 mm.
+
+    - cummax: sube cada punto al máximo de los anteriores. Solo corrige hacia arriba, es decir, hacia finos.
+    - isotonic: la curva monótona más cercana (PAVA). Reparte la corrección hacia arriba y hacia abajo,
+      sin sesgo hacia finos.
+    """
     curves = np.clip(np.atleast_2d(curves), 0, 100)
+    if method == "isotonic":
+        curves = np.clip(isotonic(curves), 0, 100)
     curves = np.maximum.accumulate(curves, axis=1)
     curves[:, -1] = 100.0
     return curves
