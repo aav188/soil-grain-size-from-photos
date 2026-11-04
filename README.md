@@ -39,6 +39,7 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 - `ensemble_bands`, el mejor en validación, es aún más fino que la CNN en el test: no conviene enviarlo como principal.
 - Envíos candidatos que se alejan de los peores en esa dirección (con cotas por convexidad de la EMD): `agg_lejos_robust_050.csv` (entre 32,8 y 54,6) y `agg_lejos_v2_030.csv` (entre 39,7 y 49,0).
 - **Estimación de la nota antes de enviar** (`python -m soilgrain.leaderboard --estimar`): reconstruye curvas del test compatibles con las 8 puntuaciones conocidas y puntúa con ellas cualquier envío. Estimaciones (estables con 4 semillas): `agg_lejos_robust_050` ~40, `agg_lejos_v2_030` ~43,5 (no mejora), `baseline_ridge` ~57, `ensemble_bands` ~87.
+- **Resultado en Kaggle: `agg_lejos_robust_050` NO mejoró a 43,52** (estimado ~40). La estimación falló, igual que en la prueba dejando fuera agg. Se abandona el ajuste al leaderboard: el envío por defecto sigue siendo el Ridge Agregado y lo siguiente es mejorar el modelo con los datos (`agg_iso`, `knn`).
 - **Límite del método:** dejando fuera la puntuación del Ridge Agregado, las reconstrucciones le predecían ~56 y sacó 43,52. Interpola bien entre envíos parecidos, pero no habría descubierto el mejor. Es ajustar al leaderboard público: enviar como sonda, no como modelo.
 
 **La CNN gana en validación y pierde en Kaggle.** Lo investigo en `04_dominio.ipynb`:
