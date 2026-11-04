@@ -7,6 +7,8 @@ Uso: python -m soilgrain.ensemble [agg|bands|v1|v2|v3]   (desde src/; por defect
 - bands: Ridge agregado solo con la energía por banda a 1, 2 y 4 mm, las features más estables entre
   cámaras (validation.camera_reliability). Mejor que agg en todas las validaciones y en H374, la única
   muestra de train fotografiada a resolución completa como el test.
+  OJO: sin puntuar, y sus curvas del test son mucho más finas que las de agg (+55 de área, más que la
+  CNN). En Kaggle, cuanto más fino el envío, peor puntúa (soilgrain.leaderboard): probablemente saque > 70.
 
 - v1: 50 % Ridge agregado + 35 % Ridge + 15 % cabeza CNN. Puntuación pública en Kaggle: 56,48.
 - v2: 30 % Ridge agregado + 30 % Ridge + 10 % cabeza CNN + 30 % Ridge sobre embeddings de la CNN.

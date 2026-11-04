@@ -34,6 +34,11 @@ Métrica oficial: EMD con peso logarítmico (área entre curvas en escala log, 0
 - Centrar las features de textura por cámara (v3) mejora mucho entre cámaras (57,9 → 48,5) y un poco por obra (50,6 → 49,2), pero empeora en Kaggle (56,25 → 58,56): si los suelos del test son distintos de verdad, centrar también borra esa señal.
 - v2 mejora a v1 en las tres validaciones, pero en Kaggle solo por 0,23 puntos (56,25 frente a 56,48): con 10 muestras públicas es ruido. Las diferencias de unos pocos puntos no son concluyentes.
 
+**Lo que dicen las puntuaciones ya conocidas** (`python -m soilgrain.leaderboard`, solo lee `submissions/`):
+- Comparando cada envío con el Ridge Agregado, **cuanto más fino predice, peor puntúa**, y entre el 60 % y el 96 % de lo que se aparta de él es error añadido. El test parece más grueso de lo que dicen todos los modelos.
+- `ensemble_bands`, el mejor en validación, es aún más fino que la CNN en el test: no conviene enviarlo como principal.
+- Envíos candidatos que se alejan de los peores en esa dirección (con cotas por convexidad de la EMD): `agg_lejos_robust_050.csv` (entre 32,8 y 54,6) y `agg_lejos_v2_030.csv` (entre 39,7 y 49,0, más conservador). Es ajustar al leaderboard público: enviarlos como sonda y no cambiar el envío por defecto sin ver la puntuación.
+
 **La CNN gana en validación y pierde en Kaggle.** Lo investigo en `04_dominio.ipynb`:
 - Las fotos de train se redujeron y recomprimieron (JPEG ~75, sin EXIF), y las de test no. Pero reproducir ese procesado en el test **no cambia** las predicciones, así que esa hipótesis queda descartada.
 - Un clasificador de dominio separa train y test casi a la perfección, pero **el control** (dos cámaras fotografiando las mismas muestras) también da AUC ~1. Un AUC alto solo indica que hay huella de cámara, no que perjudique.
